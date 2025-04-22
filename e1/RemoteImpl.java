@@ -1,6 +1,6 @@
-
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.Arrays;
 
 public class RemoteImpl extends UnicastRemoteObject implements RemoteInterface {
 
@@ -9,14 +9,11 @@ public class RemoteImpl extends UnicastRemoteObject implements RemoteInterface {
     }
 
     @Override
-    public String processRequest(String input) throws RemoteException {
-        System.out.println("Server processing: " + input + " | Thread: "
-                + Thread.currentThread().threadId());
-        try {
-            Thread.sleep(2000); // 2 second delay
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return "Processed: " + input;
+    public int[] sortArray(int[] arr) throws RemoteException {
+        System.out.println("Server sorting array: " + Arrays.toString(arr) + " | Thread: "
+                + Thread.currentThread().getId());
+        int[] sortedArr = arr.clone();
+        Arrays.sort(sortedArr);
+        return sortedArr;
     }
 }
