@@ -1,18 +1,23 @@
-
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Random;
 
 public class TokenRingNodeImpl extends UnicastRemoteObject implements
         TokenRingNode {
 
     private final String nextNodeName;
+    private final String nodeName;
     private final AtomicBoolean hasToken = new AtomicBoolean(false);
     private final AtomicBoolean wantsCriticalSection = new AtomicBoolean(false);
     private TokenRingNode cachedNextNode = null;
+    private static final AtomicInteger sharedCounter = new AtomicInteger(0);
+    private static final Random random = new Random();
 
-    public TokenRingNodeImpl(String nextNodeName) throws RemoteException {
+    public TokenRingNodeImpl(String nodeName, String nextNodeName) throws RemoteException {
+        this.nodeName = nodeName;
         this.nextNodeName = nextNodeName;
     }
 
@@ -20,7 +25,7 @@ public class TokenRingNodeImpl extends UnicastRemoteObject implements
     public void receiveToken() throws RemoteException {
         new Thread(() -> {
             hasToken.set(true);
-            System.out.println(Thread.currentThread().getName() + " received token.");
+            System.out.println("(" + nodeName + ") : received token (" + Thread.currentThread().getName() + ")");
 
             if (wantsCriticalSection.get()) {
                 enterCriticalSection();
@@ -37,27 +42,33 @@ public class TokenRingNodeImpl extends UnicastRemoteObject implements
     }
 
     private void enterCriticalSection() {
-        System.out.println(Thread.currentThread().getName() + " ENTERING CRITICAL SECTION.");
- try {
+        System.out.println("(" + nodeName + ") : ENTERING CRITICAL SECTION (" + Thread.currentThread().getName() + ")");
+        try {
+            // Increment counter by a random number between 1 and 10
+            int increment = random.nextInt(10) + 1;
+            int newValue = sharedCounter.addAndGet(increment);
+            System.out.println("(" + nodeName + ") : incremented counter by " + increment + ". New value: " + newValue + " (" + Thread.currentThread().getName() + ")");
+            
             Thread.sleep(2000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        System.out.println(Thread.currentThread().getName() + " EXITING CRITICAL SECTION. ");
- }
+        System.out.println("(" + nodeName + ") : EXITING CRITICAL SECTION (" + Thread.currentThread().getName() + ")");
+    }
 
- private void passToken() {
+    private void passToken() {
         try {
+            Thread.sleep(8000);
             if (cachedNextNode == null) {
                 cachedNextNode = (TokenRingNode) Naming.lookup(nextNodeName);
             }
 
-            System.out.println(Thread.currentThread().getName() + " passing token to "
-                    + nextNodeName);
+            System.out.println("(" + nodeName + ") : passing token to " + nextNodeName + " (" + Thread.currentThread().getName() + ")");
             hasToken.set(false);
             cachedNextNode.receiveToken();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("(" + nodeName + ") : Ring broken: " + e.getMessage() + " (" + Thread.currentThread().getName() + ")");
+            running = false;
         }
     }
 
@@ -75,10 +86,10 @@ public class TokenRingNodeImpl extends UnicastRemoteObject implements
         try {
             String nodeName = args[0];
             String nextNodeName = args[1];
-            TokenRingNodeImpl node = new TokenRingNodeImpl(nextNodeName);
+            TokenRingNodeImpl node = new TokenRingNodeImpl(nodeName, nextNodeName);
 
             Naming.rebind(nodeName, node);
-            System.out.println(nodeName + " registered. Next node: " + nextNodeName);
+            System.out.println("(" + nodeName + ") : registered. Next node: " + nextNodeName + " (" + Thread.currentThread().getName() + ")");
 
             if (args.length > 2 && args[2].equals("init")) {
                 new Thread(() -> {
@@ -91,18 +102,20 @@ public class TokenRingNodeImpl extends UnicastRemoteObject implements
                 }).start();
             }
 
+            // Continuously request critical section access
             new Thread(() -> {
-                try {
-                    Thread.sleep(5000);
-                    node.requestCriticalSection();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                while (running) {
+                    try {
+                        Thread.sleep(5000);
+                        node.requestCriticalSection();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
             }).start();
 
             while (running) {
                 Thread.sleep(1000);
-
             }
 
         } catch (Exception e) {
