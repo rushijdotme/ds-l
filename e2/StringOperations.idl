@@ -1,0 +1,11 @@
+module StringOperations {
+    interface StringService {
+        string concatenate(in string str1, in string str2);
+        string reverse(in string str);
+        string toUpperCase(in string str);
+        string toLowerCase(in string str);
+        long getLength(in string str);
+        boolean contains(in string str, in string substring);
+        string substring(in string str, in long start, in long end);
+    };
+}; 
